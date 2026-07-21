@@ -43,6 +43,16 @@ pub fn read_selected_text() -> Result<Option<String>, String> {
     }
 }
 
+#[cfg(all(test, not(target_os = "macos")))]
+mod non_macos_tests {
+    use super::read_selected_text;
+
+    #[test]
+    fn selected_text_capture_fails_closed_without_synthesizing_copy() {
+        assert_eq!(read_selected_text().unwrap(), None);
+    }
+}
+
 /// 選取狀態偵測結果（#24/#25 編輯模式判定）。
 #[derive(serde::Serialize, Clone)]
 #[serde(rename_all = "camelCase")]

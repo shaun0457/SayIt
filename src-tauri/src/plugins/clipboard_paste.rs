@@ -333,9 +333,7 @@ pub fn paste_text<R: Runtime>(
                 None
             }
             Err(e) => {
-                eprintln!(
-                    "[clipboard-paste] Snapshot: read failed (likely non-text content): {e}"
-                );
+                eprintln!("[clipboard-paste] Snapshot: read failed (likely non-text content): {e}");
                 None
             }
         }
