@@ -132,38 +132,6 @@ fn simulate_copy_via_cgevent() -> Result<(), String> {
     Ok(())
 }
 
-/// 透過 SendInput 模擬 Ctrl+C 按鍵來觸發複製。
-#[cfg(target_os = "windows")]
-fn simulate_copy_via_keyboard() -> Result<(), String> {
-    use std::mem;
-    use windows::Win32::UI::Input::KeyboardAndMouse::*;
-
-    unsafe {
-        let mut inputs: [INPUT; 4] = mem::zeroed();
-
-        inputs[0].r#type = INPUT_KEYBOARD;
-        inputs[0].Anonymous.ki.wVk = VK_CONTROL;
-
-        inputs[1].r#type = INPUT_KEYBOARD;
-        inputs[1].Anonymous.ki.wVk = VK_C;
-
-        inputs[2].r#type = INPUT_KEYBOARD;
-        inputs[2].Anonymous.ki.wVk = VK_C;
-        inputs[2].Anonymous.ki.dwFlags = KEYEVENTF_KEYUP;
-
-        inputs[3].r#type = INPUT_KEYBOARD;
-        inputs[3].Anonymous.ki.wVk = VK_CONTROL;
-        inputs[3].Anonymous.ki.dwFlags = KEYEVENTF_KEYUP;
-
-        let sent = SendInput(&inputs, mem::size_of::<INPUT>() as i32);
-        if sent != 4 {
-            return Err(format!("SendInput returned {}, expected 4", sent));
-        }
-    }
-
-    Ok(())
-}
-
 /// 透過 SendInput 模擬 Ctrl+V 按鍵來觸發貼上。
 ///
 /// Windows 不像 macOS 有 CGEvent 殘留問題，SendInput 是標準做法。
@@ -257,10 +225,11 @@ pub fn capture_target_window(state: State<'_, FocusState>) {
     }
 }
 
-/// 透過模擬 Cmd+C（macOS）/ Ctrl+C（Windows）擷取當前選取的文字。
+/// 透過模擬 Cmd+C 擷取目前選取的文字。
 ///
 /// 流程：儲存剪貼簿 → 清空 → 模擬複製 → 等待 → 讀取 → 還原 → 回傳。
 /// 對任何支援 Cmd+C 的 app 都有效，不依賴 Accessibility API。
+#[cfg(target_os = "macos")]
 pub fn capture_selected_text_via_clipboard() -> Result<Option<String>, String> {
     let mut clipboard = Clipboard::new().map_err(|e| e.to_string())?;
 
@@ -270,17 +239,8 @@ pub fn capture_selected_text_via_clipboard() -> Result<Option<String>, String> {
     // 2. 清空剪貼簿作為哨兵值
     clipboard.set_text("").map_err(|e| e.to_string())?;
 
-    // 3. 模擬 Cmd+C / Ctrl+C（失敗時先還原剪貼簿再 return）
-    let copy_result = {
-        #[cfg(target_os = "macos")]
-        {
-            simulate_copy_via_cgevent()
-        }
-        #[cfg(target_os = "windows")]
-        {
-            simulate_copy_via_keyboard()
-        }
-    };
+    // 3. 模擬 Cmd+C（失敗時先還原剪貼簿再 return）
+    let copy_result = simulate_copy_via_cgevent();
     if let Err(e) = copy_result {
         restore_clipboard_text(&mut clipboard, &original_text);
         return Err(e);

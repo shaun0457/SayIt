@@ -24,10 +24,23 @@ pub fn read_focused_text_field() -> Result<Option<String>, String> {
 /// 讀取當前聚焦文字欄位中被選取（highlight）的文字。
 /// 編輯模式的「剪貼簿後備」路徑：僅在 `read_selection_state` 回報
 /// unavailable（AX 不可見的 App）時、於錄音停止且按鍵放開後由前端呼叫。
-/// 透過模擬 Cmd+C / Ctrl+C 擷取剪貼簿內容。
+/// macOS 透過模擬 Cmd+C 擷取剪貼簿內容；其他平台無安全 API 時 fail-closed。
 #[tauri::command]
 pub fn read_selected_text() -> Result<Option<String>, String> {
-    super::clipboard_paste::capture_selected_text_via_clipboard()
+    #[cfg(target_os = "macos")]
+    {
+        super::clipboard_paste::capture_selected_text_via_clipboard()
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        // Never synthesize Ctrl+C outside macOS. In a terminal it is SIGINT,
+        // which cancels or exits an interactive CLI such as a coding LLM.
+        // When a safe platform API cannot provide a selection, fail closed and
+        // continue with normal dictation instead of entering edit mode.
+        eprintln!("[text-field-reader] selection capture unavailable without a safe platform API");
+        Ok(None)
+    }
 }
 
 /// 選取狀態偵測結果（#24/#25 編輯模式判定）。
